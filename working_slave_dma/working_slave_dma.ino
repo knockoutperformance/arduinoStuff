@@ -9,20 +9,14 @@
 
 uint8_t rx_buffer[BUFF_SIZE];
 uint8_t tx_buffer[BUFF_SIZE];
-volatile bool done = false;
+//volatile bool done = false;         // flag for main loop
 
-/** Use extra Bus Matrix arbitration fix if nonzero */
-#define USE_SAM3X_BUS_MATRIX_FIX 1
-/** chip select register number */
-//#define SPI_CHIP_SEL 0
-/** DMAC receive channel */
-#define SPI_DMAC_RX_CH  1
-/** DMAC transmit channel */
-#define SPI_DMAC_TX_CH  0
-/** DMAC Channel HW Interface Number for SPI TX. */
-#define SPI_TX_IDX  1
-/** DMAC Channel HW Interface Number for SPI RX. */
-#define SPI_RX_IDX  2
+
+#define USE_SAM3X_BUS_MATRIX_FIX 1  /** Use extra Bus Matrix arbitration fix if nonzero */
+#define SPI_DMAC_RX_CH  1           /** DMAC receive channel */
+#define SPI_DMAC_TX_CH  0           /** DMAC transmit channel */
+#define SPI_TX_IDX  1               /** DMAC Channel HW Interface Number for SPI TX. */
+#define SPI_RX_IDX  2               /** DMAC Channel HW Interface Number for SPI RX. */
 
 //------------------------------------------------------------------------------
 static void dmac_disable() {/** Disable DMA Controller. */
@@ -37,7 +31,7 @@ static void dmac_channel_disable(uint32_t ul_num) {/** Disable DMA Channel. */
 static void dmac_channel_enable(uint32_t ul_num) {/** Enable DMA Channel. */
   DMAC->DMAC_CHER = DMAC_CHER_ENA0 << ul_num;
 }
-uint32_t dmac_get_status(){
+uint32_t dmac_get_status(){ /** get status of flags **/
   return DMAC->DMAC_EBCISR;
 }
 
@@ -66,7 +60,6 @@ void enable_dma(){
   pmc_enable_periph_clk(ID_DMAC);
   dmac_disable();
   DMAC->DMAC_GCFG = DMAC_GCFG_ARB_CFG_FIXED;
-  //DMAC->DMAC_GCFG = DMAC_PRIORITY_ROUND_ROBIN;
   dmac_enable();
 #if USE_SAM3X_BUS_MATRIX_FIX
   MATRIX->MATRIX_WPMR = 0x4d415400;
@@ -80,22 +73,22 @@ void enable_dma(){
   DMAC->DMAC_CH_NUM[SPI_DMAC_RX_CH].DMAC_CFG = DMAC_CFG_SRC_PER(SPI_RX_IDX) | DMAC_CFG_SRC_H2SEL | DMAC_CFG_SOD | DMAC_CFG_FIFOCFG_ALAP_CFG;  
   DMAC->DMAC_CH_NUM[SPI_DMAC_TX_CH].DMAC_CFG = DMAC_CFG_DST_PER(SPI_TX_IDX) | DMAC_CFG_DST_H2SEL | DMAC_CFG_SOD | DMAC_CFG_FIFOCFG_ALAP_CFG;
 
-  NVIC_EnableIRQ(DMAC_IRQn);
+  NVIC_EnableIRQ(DMAC_IRQn);                 // enable dma handler
 
-  DMAC->DMAC_EBCIER = (1 << SPI_DMAC_RX_CH);
+  DMAC->DMAC_EBCIER = (1 << SPI_DMAC_RX_CH); // enable rx complete flag
+  
   spiDmaRXTX(tx_buffer,rx_buffer,BUFF_SIZE); // initial loading to get things rolling
   }
 
 void slaveDMABegin(uint8_t _pin) {  
-  pinMode(_pin,INPUT);                                            // for slave mode
-  pinMode(SCK,INPUT);                                           // for slave mode
-
+  pinMode(_pin,INPUT);            // for slave mode
+  pinMode(SCK,INPUT);             // for slave mode
   SPI.begin(_pin);
   //SPI.beginTransaction(_pin,SPISettings(0, MSBFIRST, SPI_MODE0));
   REG_SPI0_CR = SPI_CR_SWRST;     // reset SPI
   REG_SPI0_CR = SPI_CR_SPIEN;     // enable SPI
-  REG_SPI0_MR = 0x02;     // slave and no modefault
-  REG_SPI0_CSR = 0x00;    // DLYBCT=0, DLYBS=0, SCBR=0, 8 bit transfer
+  REG_SPI0_MR = 0x02;             // slave and no modefault
+  REG_SPI0_CSR = 0x00;            // DLYBCT=0, DLYBS=0, SCBR=0, 8 bit transfer
 }
 
 
@@ -104,8 +97,8 @@ void DMAC_Handler(){
   static uint32_t ul_status;
   ul_status = dmac_get_status();
   
-  if (ul_status & (1 << SPI_DMAC_RX_CH)) {
-#ifdef debug // only print when debuginng
+  if (ul_status & (1 << SPI_DMAC_RX_CH)) {      // check for done receive flag
+#ifdef debug                                    // only print when debuginng
     String strIn;              
     for(int iIdx=0; iIdx<sizeof(rx_buffer); iIdx++){
       strIn += (String(rx_buffer[iIdx]) + ",");
@@ -113,18 +106,21 @@ void DMAC_Handler(){
     Serial.println("Received data");
     Serial.println(strIn);
 #endif
-    done = true;
-    spiDmaRXTX(tx_buffer,rx_buffer,BUFF_SIZE); // reload for next time around
+    //done = true;                                // when checking this in the main program, set to false;
+    spiDmaRXTX(tx_buffer,rx_buffer,BUFF_SIZE);  // reload for next time around
   }
 }
 
 
 void setup() {
-  Serial.begin(457900);
-  Serial.println("Starting setup");   
-  slaveDMABegin(SS);
-  enable_dma();
+  #ifdef debug
+    Serial.begin(457900); // offset for due to get to 500000 buad output
+    Serial.println("Starting setup");
+  #endif
+  slaveDMABegin(SS);      // begin as slave spi
+  enable_dma();           // setup dma channels aand get ready for transactions
 }
 
 void loop() {
+                          // all done with the dma handler!!!!!!!!!!
 }
