@@ -1,4 +1,4 @@
-/*8mhz mega2560 duplex spi master*/
+/*8mhz ardunio mega2560 DUPLEX SPI COMMS master*/
 
 #include <SPI.h>
 #include <avr/interrupt.h>
