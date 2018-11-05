@@ -102,8 +102,9 @@ void assemSpiTransfTen(void *spi_buffer) { // fast as possible
     *p = crc; // 10th bit is crc value
    #endif
   
-  PORTB &= ~_BV(PB0);                           //low pin 53 slave select to arduino due
-  
+  //PORTB &= ~_BV(PB0);                           //low pin 53 slave select to arduino due
+  digitalWriteFast(SS,LOW);
+ 
   uint8_t sreg = SREG;                          // save registers
   cli();                                        // turn interrupts off //noInterrupts();
 //  uint8_t clockDiv = 0;                         // 8000000 mhz
@@ -294,7 +295,9 @@ void assemSpiTransfTen(void *spi_buffer) { // fast as possible
     );
 #endif
 
- PORTB |= _BV(PB0);                             // high pin 53 slave select
+ //PORTB |= _BV(PB0);                             // high pin 53 slave select
+ digitalWriteFast(SS,HIGH);
+ 
  SREG = sreg;                                   // reload registers
  sei();                                         // turn interrupts back on
 }
@@ -310,6 +313,7 @@ void setup() {
   Serial.begin(500000);
  #endif
   pinModeFast(SS, OUTPUT);                         // needed right before 
+  //pinModeFast(53, OUTPUT);                         // if using no standerd pin 53 for ss
   SPI.begin ();                                    // put here for cold start issues
   uint8_t clockDiv = 0;                            // 8000000 mhz
   clockDiv ^= 0x1;                                 // Invert the SPI2X bit                                           // Pack into the SPISettings class
